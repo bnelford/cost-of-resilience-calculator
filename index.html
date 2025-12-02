@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cost of Resilience | Uptime & Spend Simulator</title>
+  <style>
+    :root {
+      --bg: #050915;
+      --panel: rgba(12, 18, 40, 0.92);
+      --card: rgba(16, 23, 52, 0.95);
+      --muted: #8ea0c6;
+      --text: #eef3ff;
+      --accent: #7ff5c6;
+      --accent-2: #6c9bff;
+      --warn: #ffb347;
+      --danger: #ff6b6b;
+      --grid-gap: 18px;
+      --radius: 14px;
+      --shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
+      --digit-bg: #0a122c;
+      --digit-shadow: 0 0 10px rgba(127, 245, 198, 0.6);
+      font-family: "Space Grotesk", "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at 25% 20%, rgba(64, 99, 255, 0.1), transparent 35%),
+                  radial-gradient(circle at 75% 0%, rgba(127, 245, 198, 0.08), transparent 30%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    header {
+      padding: 18px 22px;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    header h1 {
+      margin: 0 0 10px;
+      font-size: 28px;
+      letter-spacing: -0.4px;
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 900px;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 0.8fr 1.6fr 0.8fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.2px;
+    }
+
+    .badge {
+      padding: 6px 10px;
+      background: rgba(127, 245, 198, 0.15);
+      color: var(--accent);
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(127, 245, 198, 0.25);
+    }
+
+    .card {
+      position: relative;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 12px;
+      overflow: visible;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      letter-spacing: -0.2px;
+    }
+
+    .card p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input, select {
+      background: #0c1534;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(127, 245, 198, 0.15);
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .components-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .component-card {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+      align-items: center;
+    }
+
+    .components-list .card {
+      margin-bottom: 0;
+      height: 100%;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 10px;
+    }
+
+    .component-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .component-header input[type="text"] {
+      flex: 1;
+      margin-right: 0;
+    }
+
+    .component-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .component-close {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff7f9f, #ff4b6e);
+      color: white;
+      border: 2px solid var(--card);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(255, 75, 110, 0.35);
+      font-weight: 700;
+    }
+
+    .replica-leds {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 8px 0 4px;
+    }
+
+    .replica-leds span {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.35);
+    }
+
+    .replica-leds span.active {
+      background: linear-gradient(135deg, #7ff5c6, #6c9bff);
+      box-shadow: 0 0 8px rgba(127, 245, 198, 0.5);
+      border-color: rgba(127, 245, 198, 0.8);
+    }
+
+    .pill {
+      background: rgba(108, 155, 255, 0.12);
+      color: var(--accent-2);
+      padding: 4px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(108, 155, 255, 0.2);
+      font-size: 12px;
+    }
+
+    .btn {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 600;
+      transition: transform 0.1s ease, box-shadow 0.2s ease, border 0.2s ease;
+      font-size: 14px;
+      color: var(--bg);
+      background: linear-gradient(120deg, #7ff5c6, #6c9bff);
+      box-shadow: 0 8px 25px rgba(108, 155, 255, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .digital {
+      background: radial-gradient(circle at 50% 20%, rgba(127, 245, 198, 0.15), var(--digit-bg));
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.03em;
+      border: 1px solid rgba(127, 245, 198, 0.25);
+      box-shadow: var(--digit-shadow);
+      display: inline-block;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    .cost-counter {
+      font-size: 34px;
+      margin: 0;
+    }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+      margin: 12px 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .row.space-between {
+      justify-content: space-between;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .danger { color: var(--danger); }
+    .warn { color: var(--warn); }
+    .ok { color: var(--accent); }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat label { color: var(--muted); font-size: 12px; }
+
+    .replica-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 6px 10px;
+      width: fit-content;
+    }
+
+    .replica-control button {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .replica-count {
+      min-width: 20px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .input-suffix {
+      position: relative;
+    }
+
+    .input-suffix input {
+      width: 100%;
+      padding-right: 46px;
+    }
+
+    .input-suffix span {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .btn.tiny {
+      padding: 6px 8px;
+      font-size: 12px;
+      box-shadow: none;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text);
+    }
+
+    @media (min-width: 1200px) {
+      .components-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+      .components-list { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Cost of Resilience — Uptime vs Spend</h1>
+      <p>Experiment with redundancy, component availability, and business impact to show leaders the marginal cost of squeezing out more nines. Add components, dial replicas, and watch digital gauges reveal uptime, downtime, and total cost in real time.</p>
+    </header>
+
+    <div class="grid">
+      <div class="panel stack">
+        <div class="section-title">
+          <h2>1) Goal settings</h2>
+          <span class="badge">Guardrails</span>
+        </div>
+
+        <div class="card">
+          <h3>Business guardrails</h3>
+          <p>Set the SLO target and the cost of downtime so you can translate minutes into dollars.</p>
+          <div class="component-card">
+            <div class="field">
+              <label for="target-slo">Target availability (SLO)</label>
+              <select id="target-slo">
+                <option value="0.99">99.0%</option>
+                <option value="0.995">99.5%</option>
+                <option value="0.999" selected>99.9% (three nines)</option>
+                <option value="0.9995">99.95%</option>
+                <option value="0.9999">99.99% (four nines)</option>
+                <option value="0.99999">99.999% (five nines)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="revenue-per-minute">Revenue or impact per minute of downtime ($)</label>
+              <input type="number" id="revenue-per-minute" min="0" step="100" value="1500">
+            </div>
+            <div class="field">
+              <label for="period">Period</label>
+              <select id="period">
+                <option value="year" selected>Per year</option>
+                <option value="quarter">Per quarter</option>
+                <option value="month">Per month</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cloud-provider">Cloud provider (retail)</label>
+              <select id="cloud-provider">
+                <option value="aws" selected>AWS</option>
+                <option value="gcp">GCP</option>
+                <option value="azure">Azure</option>
+              </select>
+              <span class="hint">Used for catalog price lookups; overrides catalog-based component prices when changed.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel stack">
+        <div class="section-title">
+          <h2>2) System components</h2>
+          <span class="badge">Series path</span>
+        </div>
+
+        <div class="card">
+          <div class="component-header">
+            <div>
+              <h3>Components in your service path</h3>
+              <p style="margin: 0;">Each component is deployed in series. Add redundancy with replicas to push effective availability.</p>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+              <button class="btn secondary" id="optimize">Optimize mix</button>
+              <button class="btn" id="add-component">+ Add component</button>
+            </div>
+          </div>
+          <div class="component-card" style="grid-template-columns: 1.4fr 1fr;">
+            <div class="field">
+              <label>Architecture presets</label>
+              <div class="row" style="flex-wrap: wrap; gap: 6px;">
+                <button class="btn secondary" data-template="simple">Simple web + DB</button>
+                <button class="btn secondary" data-template="tiered">Web + cache + DB</button>
+                <button class="btn secondary" data-template="large">Large distributed</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="catalog-select">Add from catalog (retail hourly)</label>
+              <div class="row" style="gap: 8px;">
+                <select id="catalog-select" style="flex: 1;"></select>
+                <button class="btn secondary" id="add-catalog">Add</button>
+              </div>
+              <span class="hint">Pulls price & baseline availability for the selected provider.</span>
+            </div>
+          </div>
+          <div class="components-list" id="components-list"></div>
+        </div>
+      </div>
+
+      <div class="panel stack">
+        <div class="section-title">
+          <h2>3) Results</h2>
+          <span class="badge">Live recalculation</span>
+        </div>
+
+        <div class="card">
+          <h3>Availability & downtime</h3>
+          <div class="stat-grid">
+            <div class="stat">
+              <label>Overall availability</label>
+              <div class="digital" id="overall-availability">0.000%</div>
+            </div>
+            <div class="stat">
+              <label>Resilience gap vs target</label>
+              <div class="digital" id="resilience-gap">0.000%</div>
+            </div>
+            <div class="stat">
+              <label>Expected downtime</label>
+              <div class="digital" id="downtime-minutes">0.0 min</div>
+            </div>
+            <div class="stat">
+              <label>Downtime cost (period)</label>
+              <div class="digital" id="downtime-cost">$0</div>
+            </div>
+          </div>
+          <p class="hint" id="optimize-note">Click “Optimize mix” to search replica counts (1-6) that minimize downtime + infra cost while trying to meet your target.</p>
+        </div>
+
+        <div class="card">
+          <h3>Run-rate cost</h3>
+          <p style="margin-top: 0;">Sum of component spend across replicas. Watch the number climb as you chase more nines.</p>
+          <div class="stat-grid">
+            <div class="stat">
+              <label>Monthly run-rate</label>
+              <div class="digital cost-counter" id="monthly-cost">$0</div>
+            </div>
+            <div class="stat">
+              <label>Annualized</label>
+              <div class="digital" id="annual-cost">$0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const components = [
+      { id: crypto.randomUUID ? crypto.randomUUID() : 'api-' + Date.now(), name: 'API Gateway', availability: 0.995, cost: 0.06, replicas: 2, sku: 'web-basic' },
+      { id: 'db-' + Math.random().toString(16).slice(2), name: 'Primary Database', availability: 0.999, cost: 0.55, replicas: 1, sku: 'db-ha' },
+      { id: 'queue-' + Math.random().toString(16).slice(2), name: 'Async Queue', availability: 0.998, cost: 0.04, replicas: 2, sku: 'queue' }
+    ];
+
+    const periodMinutes = {
+      month: 30 * 24 * 60,
+      quarter: 90 * 24 * 60,
+      year: 365 * 24 * 60
+    };
+    const HOURS_PER_MONTH = 730;
+
+    const catalog = {
+      'web-basic': {
+        label: 'Web compute node',
+        availability: 0.995,
+        providers: { aws: 0.06, gcp: 0.065, azure: 0.07 }
+      },
+      'db-basic': {
+        label: 'Relational DB (single AZ)',
+        availability: 0.999,
+        providers: { aws: 0.35, gcp: 0.33, azure: 0.32 }
+      },
+      'db-ha': {
+        label: 'Relational DB (HA / multi-AZ)',
+        availability: 0.9995,
+        providers: { aws: 0.55, gcp: 0.52, azure: 0.5 }
+      },
+      'cache-ha': {
+        label: 'In-memory cache (HA)',
+        availability: 0.999,
+        providers: { aws: 0.25, gcp: 0.24, azure: 0.22 }
+      },
+      'queue': {
+        label: 'Managed queue',
+        availability: 0.999,
+        providers: { aws: 0.04, gcp: 0.038, azure: 0.036 }
+      },
+      'cdn': {
+        label: 'CDN / edge',
+        availability: 0.998,
+        providers: { aws: 0.02, gcp: 0.022, azure: 0.021 }
+      },
+      'search': {
+        label: 'Search cluster',
+        availability: 0.998,
+        providers: { aws: 0.4, gcp: 0.38, azure: 0.36 }
+      },
+      'analytics': {
+        label: 'Analytics pipeline',
+        availability: 0.995,
+        providers: { aws: 0.3, gcp: 0.28, azure: 0.27 }
+      }
+    };
+
+    const templates = {
+      simple: [
+        { sku: 'web-basic', replicas: 2 },
+        { sku: 'db-basic', replicas: 1 }
+      ],
+      tiered: [
+        { sku: 'cdn', replicas: 2 },
+        { sku: 'web-basic', replicas: 3 },
+        { sku: 'cache-ha', replicas: 2 },
+        { sku: 'db-ha', replicas: 1 }
+      ],
+      large: [
+        { sku: 'cdn', replicas: 3 },
+        { sku: 'web-basic', replicas: 6 },
+        { sku: 'queue', replicas: 3 },
+        { sku: 'cache-ha', replicas: 3 },
+        { sku: 'db-ha', replicas: 2 },
+        { sku: 'search', replicas: 2 },
+        { sku: 'analytics', replicas: 2 }
+      ]
+    };
+
+    let currentProvider = 'aws';
+
+    const elements = {
+      componentsList: document.getElementById('components-list'),
+      addComponentBtn: document.getElementById('add-component'),
+      optimizeBtn: document.getElementById('optimize'),
+      addCatalogBtn: document.getElementById('add-catalog'),
+      catalogSelect: document.getElementById('catalog-select'),
+      provider: document.getElementById('cloud-provider'),
+      targetSlo: document.getElementById('target-slo'),
+      revenuePerMinute: document.getElementById('revenue-per-minute'),
+      period: document.getElementById('period'),
+      overallAvailability: document.getElementById('overall-availability'),
+      downtimeMinutes: document.getElementById('downtime-minutes'),
+      monthlyCost: document.getElementById('monthly-cost'),
+      annualCost: document.getElementById('annual-cost'),
+      downtimeCost: document.getElementById('downtime-cost'),
+      resilienceGap: document.getElementById('resilience-gap')
+    };
+
+    function formatPercent(value) {
+      return (value * 100).toFixed(3) + '%';
+    }
+
+    function formatMoney(value) {
+      return '$' + Math.round(value).toLocaleString();
+    }
+
+    function effectiveAvailability(component) {
+      const single = clamp(component.availability, 0.5, 0.9999999);
+      const replicas = Math.max(1, Number(component.replicas) || 1);
+      return 1 - Math.pow(1 - single, replicas);
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function computeOverallAvailability() {
+      if (!components.length) return 0;
+      return components.reduce((acc, c) => acc * effectiveAvailability(c), 1);
+    }
+    function computeMetrics(forComponents = components) {
+      const target = Number(elements.targetSlo.value);
+      const rpm = Number(elements.revenuePerMinute.value) || 0;
+      const minutes = periodMinutes[elements.period.value] || periodMinutes.year;
+      const availability = forComponents.reduce((acc, c) => acc * effectiveAvailability(c), 1);
+      const downtimeMinutes = (1 - availability) * minutes;
+      const downtimeCost = downtimeMinutes * rpm;
+      const monthlyCost = forComponents.reduce(
+        (acc, c) => acc + (c.cost || 0) * HOURS_PER_MONTH * Math.max(1, c.replicas || 1),
+        0
+      );
+      return { availability, downtimeMinutes, downtimeCost, monthlyCost, target };
+    }
+
+    function renderReplicaLeds(count) {
+      const n = Math.max(1, Math.round(count || 1));
+      const cap = Math.min(n, 12);
+      let leds = '';
+      for (let i = 0; i < cap; i += 1) {
+        leds += `<span class="${i < n ? 'active' : ''}"></span>`;
+      }
+      return leds;
+    }
+
+    function animateNumber(el, to, duration = 400) {
+      const from = Number(el.dataset.value) || 0;
+      const start = performance.now();
+      function step(now) {
+        const progress = Math.min((now - start) / duration, 1);
+        const value = from + (to - from) * progress;
+        el.textContent = formatMoney(value);
+        if (progress < 1) requestAnimationFrame(step);
+        else el.dataset.value = String(to);
+      }
+      requestAnimationFrame(step);
+    }
+
+    function renderComponents() {
+      elements.componentsList.innerHTML = '';
+      if (!components.length) {
+        elements.componentsList.innerHTML = '<div class="hint">No components yet — add one to begin.</div>';
+        return;
+      }
+
+      components.forEach((component) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        card.innerHTML = `
+          <div class="component-close" data-remove="${component.id}" title="Remove component">×</div>
+          <div class="component-header">
+            <input type="text" value="${component.name}" aria-label="Component name" />
+          </div>
+          <div class="component-card">
+            <div class="field input-suffix">
+              <label>Base availability (per instance)</label>
+              <input type="number" step="0.001" min="90" max="99.999" value="${(component.availability * 100).toFixed(3)}">
+              <span>%</span>
+            </div>
+            <div class="field">
+              <label>Hourly cost per instance ($/hr)</label>
+              <div class="row" style="gap: 6px; align-items: center;">
+                <input type="number" min="0" step="0.01" value="${component.cost}">
+                ${component.sku ? `<button class="btn secondary tiny" data-lookup="${component.id}">Lookup</button>` : ''}
+              </div>
+              ${component.sku ? `<span class="hint">Retail lookup from ${currentProvider.toUpperCase()} catalog.</span>` : ''}
+            </div>
+            <div class="field" style="gap: 10px;">
+              <label>Replicas (for redundancy)</label>
+              <div class="replica-control">
+                <button data-dec="${component.id}">-</button>
+                <div class="replica-count" aria-live="polite">${component.replicas}</div>
+                <button data-inc="${component.id}">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="replica-leds" aria-hidden="true">
+            ${renderReplicaLeds(component.replicas)}
+          </div>
+          <div class="component-meta">
+            <span class="pill">Effective availability: <strong>${formatPercent(effectiveAvailability(component))}</strong></span>
+            <span class="pill">Monthly spend: <strong>${formatMoney(component.cost * HOURS_PER_MONTH * component.replicas)}</strong></span>
+          </div>
+        `;
+
+        const [nameInput, availabilityInput, costInput] = card.querySelectorAll('input');
+
+        nameInput.addEventListener('input', (e) => updateComponent(component.id, 'name', e.target.value));
+        availabilityInput.addEventListener('input', (e) => {
+          updateComponent(component.id, 'availability', Number(e.target.value) / 100);
+        });
+        costInput.addEventListener('input', (e) => updateComponent(component.id, 'cost', Number(e.target.value)));
+
+        card.querySelector('[data-remove]').addEventListener('click', () => removeComponent(component.id));
+        const lookupBtn = card.querySelector(`[data-lookup="${component.id}"]`);
+        if (lookupBtn) {
+          lookupBtn.addEventListener('click', () => lookupPrice(component.id));
+        }
+        card.querySelector(`[data-inc="${component.id}"]`).addEventListener('click', () => bumpReplicas(component.id, 1));
+        card.querySelector(`[data-dec="${component.id}"]`).addEventListener('click', () => bumpReplicas(component.id, -1));
+
+        elements.componentsList.appendChild(card);
+      });
+
+      updateOutputs();
+    }
+
+    function updateOutputs() {
+      const target = Number(elements.targetSlo.value);
+      const rpm = Number(elements.revenuePerMinute.value) || 0;
+      const minutes = periodMinutes[elements.period.value] || periodMinutes.year;
+
+      const availability = computeOverallAvailability();
+      const downtimeMinutes = (1 - availability) * minutes;
+      const downtimeCost = downtimeMinutes * rpm;
+      const monthlyCost = components.reduce(
+        (acc, c) => acc + (c.cost || 0) * HOURS_PER_MONTH * Math.max(1, c.replicas || 1),
+        0
+      );
+      const annualCost = monthlyCost * 12;
+      const gap = Math.max(target - availability, 0);
+
+      elements.overallAvailability.textContent = formatPercent(availability);
+      elements.downtimeMinutes.textContent = `${downtimeMinutes.toFixed(1)} min`;
+
+      animateNumber(elements.monthlyCost, monthlyCost);
+      elements.annualCost.textContent = formatMoney(annualCost);
+      elements.downtimeCost.textContent = formatMoney(downtimeCost);
+      elements.resilienceGap.textContent = formatPercent(gap);
+    }
+
+    function updateComponent(id, key, value) {
+      const idx = components.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+      components[idx] = { ...components[idx], [key]: value };
+      renderComponents();
+    }
+
+    function removeComponent(id) {
+      const idx = components.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+      components.splice(idx, 1);
+      renderComponents();
+    }
+
+    function addComponent() {
+      const newComponent = {
+        id: 'comp-' + Math.random().toString(16).slice(2),
+        name: 'New component',
+        availability: 0.995,
+        cost: 0.1,
+        replicas: 1
+      };
+      components.push(newComponent);
+      renderComponents();
+    }
+
+    function bumpReplicas(id, delta) {
+      const idx = components.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+      const current = Math.max(1, Math.round(components[idx].replicas || 1));
+      const next = Math.max(1, current + delta);
+      components[idx] = { ...components[idx], replicas: next };
+      renderComponents();
+    }
+
+    function getCatalogPrice(sku, provider = currentProvider) {
+      const entry = catalog[sku];
+      if (!entry) return null;
+      const cost = entry.providers[provider];
+      if (cost == null) return null;
+      return { cost, availability: entry.availability, label: entry.label };
+    }
+
+    function lookupPrice(id) {
+      const idx = components.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+      const comp = components[idx];
+      if (!comp.sku) return;
+      const price = getCatalogPrice(comp.sku);
+      if (!price) return;
+      components[idx] = { ...comp, cost: price.cost, availability: price.availability };
+      renderComponents();
+    }
+
+    function addFromCatalog() {
+      const sku = elements.catalogSelect.value;
+      if (!sku) return;
+      const price = getCatalogPrice(sku);
+      if (!price) return;
+      const newComponent = {
+        id: 'comp-' + Math.random().toString(16).slice(2),
+        name: price.label,
+        availability: price.availability,
+        cost: price.cost,
+        replicas: 1,
+        sku
+      };
+      components.push(newComponent);
+      renderComponents();
+    }
+
+    function applyTemplate(templateKey) {
+      const tpl = templates[templateKey];
+      if (!tpl) return;
+      components.length = 0;
+      tpl.forEach((item) => {
+        const price = getCatalogPrice(item.sku) || { cost: 0.1, availability: 0.995, label: catalog[item.sku]?.label || 'Component' };
+        components.push({
+          id: 'comp-' + Math.random().toString(16).slice(2),
+          name: price.label,
+          availability: price.availability,
+          cost: price.cost,
+          replicas: item.replicas,
+          sku: item.sku
+        });
+      });
+      renderComponents();
+    }
+
+    function refreshCatalogOptions() {
+      const entries = Object.entries(catalog).map(([sku, entry]) => ({ sku, label: entry.label }));
+      elements.catalogSelect.innerHTML = entries
+        .map((entry) => `<option value="${entry.sku}">${entry.label}</option>`)
+        .join('');
+    }
+
+    function onProviderChange(value) {
+      currentProvider = value;
+      components.forEach((comp, idx) => {
+        if (comp.sku) {
+          const price = getCatalogPrice(comp.sku, currentProvider);
+          if (price) components[idx] = { ...comp, cost: price.cost, availability: price.availability };
+        }
+      });
+      renderComponents();
+    }
+
+    function optimizeMix() {
+      if (!components.length) return;
+      const maxReplicas = 6;
+      let best = null;
+
+      function evaluate(candidate) {
+        const metrics = computeMetrics(candidate);
+        const gap = Math.max(metrics.target - metrics.availability, 0);
+        const infraCost = metrics.monthlyCost;
+        const penalty = gap > 0 ? gap * 1e6 : 0;
+        const score = infraCost + metrics.downtimeCost + penalty;
+        if (!best || score < best.score) {
+          best = { score, candidate: candidate.map((c) => ({ ...c })) };
+        }
+      }
+
+      function dfs(index, current) {
+        if (index === components.length) {
+          evaluate(current);
+          return;
+        }
+        for (let r = 1; r <= maxReplicas; r += 1) {
+          const clone = { ...components[index], replicas: r };
+          dfs(index + 1, [...current, clone]);
+        }
+      }
+
+      dfs(0, []);
+      if (best) {
+        best.candidate.forEach((c) => {
+          const idx = components.findIndex((existing) => existing.id === c.id);
+          if (idx !== -1) components[idx] = { ...components[idx], replicas: c.replicas };
+        });
+        renderComponents();
+      }
+    }
+
+    elements.addComponentBtn.addEventListener('click', addComponent);
+    elements.optimizeBtn.addEventListener('click', optimizeMix);
+    elements.addCatalogBtn.addEventListener('click', addFromCatalog);
+    elements.catalogSelect.addEventListener('change', () => {});
+    elements.provider.addEventListener('change', (e) => onProviderChange(e.target.value));
+    elements.targetSlo.addEventListener('change', updateOutputs);
+    elements.revenuePerMinute.addEventListener('input', updateOutputs);
+    elements.period.addEventListener('change', updateOutputs);
+
+    document.querySelectorAll('[data-template]').forEach((btn) => {
+      btn.addEventListener('click', () => applyTemplate(btn.dataset.template));
+    });
+
+    refreshCatalogOptions();
+    renderComponents();
+  </script>
+</body>
+</html>
